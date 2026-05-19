@@ -2,10 +2,13 @@
 // See LICENSE file in the project root for full license information.
 
 import {
+    Config,
     debounce,
     type HtmlTextOptions,
     type IDisposable,
     type IDocument,
+    IFace,
+    INode,
     type INodeFilter,
     type IShape,
     type IShapeFilter,
@@ -35,16 +38,20 @@ import { div, span, svg } from "@chili3d/element";
 import {
     DirectionalLight,
     type Intersection,
-    type Object3D,
+    Line,
+    LineSegments,
+    Mesh,
+    Object3D,
     OrthographicCamera,
     PerspectiveCamera,
     Raycaster,
     type Scene,
     Vector2,
     Vector3,
-    WebGLRenderer,
+    WebGLRenderer
 } from "three";
 import { SelectionBox } from "three/examples/jsm/interactive/SelectionBox.js";
+import { Line2 } from "three/examples/jsm/lines/Line2.js";
 import { LineSegments2 } from "three/examples/jsm/lines/LineSegments2.js";
 import { CSS2DObject, CSS2DRenderer } from "three/examples/jsm/renderers/CSS2DRenderer.js";
 import { CameraController } from "./cameraController";
@@ -67,6 +74,7 @@ export class ThreeView extends Observable implements IView {
     private readonly _workplane: Plane;
     private readonly _gizmo: IViewGizmo;
     private readonly _resizeObserver: ResizeObserver;
+    private _isolatedNodes?: INode[]
 
     readonly cameraController: CameraController;
     readonly dynamicLight = new DirectionalLight(0xffffff, 2);
@@ -223,13 +231,13 @@ export class ThreeView extends Observable implements IView {
             options?.hideDelete === true
                 ? ""
                 : svg({
-                      className: style.delete,
-                      icon: "icon-times",
-                      onclick: (e) => {
-                          e.stopPropagation();
-                          dispose();
-                      },
-                  }),
+                    className: style.delete,
+                    icon: "icon-times",
+                    onclick: (e) => {
+                        e.stopPropagation();
+                        dispose();
+                    },
+                }),
         );
     }
 
@@ -340,6 +348,51 @@ export class ThreeView extends Observable implements IView {
     private mouseToWorld(mx: number, my: number, z: number = 0.5) {
         const { x, y } = this.screenToCameraRect(mx, my);
         return new Vector3(x, y, z).unproject(this.camera);
+    }
+
+    isolate(nodes: INode[]) {
+        const visuals = nodes.map((x) => this.content.getVisual(x)).filter((x) => x !== undefined) as IVisualObject[];
+        for (const shape of visuals) {
+            if (shape instanceof Object3D) {
+                shape.layers.set(Constants.Layers.Isolation);
+                shape.children.forEach((x) => {
+                    x.layers.set(Constants.Layers.Isolation);
+                });
+            }
+        }
+
+        this.cameraController.camera.layers.disableAll();
+        this.cameraController.camera.layers.enable(Constants.Layers.Default);
+        this.cameraController.camera.layers.enable(Constants.Layers.Isolation);
+
+        if (!this._isolatedNodes) {
+            this._isolatedNodes = nodes;
+        } else {
+            this._isolatedNodes = this._isolatedNodes.concat(nodes);
+        }
+    }
+
+    unisolate() {
+        if (!this._isolatedNodes) return;
+
+        const shapes = this._isolatedNodes.map((x) => this.content.getVisual(x)).filter((x) => x !== undefined) as IVisualObject[];
+        for (const shape of shapes) {
+            if (shape instanceof Object3D) {
+                shape.layers.set(Constants.Layers.Default);
+                shape.children.forEach((x) => {
+                    if (x instanceof LineSegments2 || x instanceof Line2 || x instanceof Line || x instanceof LineSegments) {
+                        x.layers.set(Constants.Layers.Wireframe);
+                    } else if (x instanceof Mesh) {
+                        x.layers.set(Constants.Layers.Solid);
+                    } else {
+                        console.error("Unsupported object type: " + x);
+                    }
+                })
+            }
+        }
+
+        this.cameraController.camera.layers.enableAll();
+        this._isolatedNodes = undefined;
     }
 
     detectVisual(x: number, y: number, nodeFilter?: INodeFilter): IVisualObject[] {
@@ -469,9 +522,21 @@ export class ThreeView extends Observable implements IView {
         nodeFilter?: INodeFilter,
     ): VisualShapeData[] {
         const intersections = this.findIntersectedShapes(shapeType, mx, my);
-        return ShapeTypeUtils.isWhole(shapeType)
-            ? this.detectThreeShapes(intersections, shapeFilter, nodeFilter)
-            : this.detectSubShapes(shapeType, intersections, shapeFilter, nodeFilter);
+        if (ShapeTypeUtils.isWhole(shapeType)) {
+            return this.detectThreeShapes(intersections, shapeFilter, nodeFilter);
+        }
+        const subs = this.detectSubShapes(shapeType, intersections, shapeFilter, nodeFilter);
+        if (subs.length > 1 && subs[0].shape.shapeType === ShapeTypes.face) {
+            const i = subs.findIndex(x => x.shape.shapeType === ShapeTypes.edge);
+            if (i < 0) return subs;
+
+            const nearest = (subs[0].shape as IFace).surface().nearestPoint(subs[i].point!);
+            if (nearest![0].distanceTo(subs[i].point!) < 0.001) { // edge on face
+                const v = subs.splice(i, 1);
+                subs.splice(0, 0, ...v);
+            }
+        }
+        return subs;
     }
 
     private detectThreeShapes(
@@ -619,14 +684,14 @@ export class ThreeView extends Observable implements IView {
     }
 
     private findIntersectedNodes(mx: number, my: number) {
-        const visuals: Object3D[] = [];
+        let visuals: Object3D[] = [];
         this.document.visual.context.visuals().forEach((x) => {
             if (!x.visible) return;
-
             if (x instanceof ThreeVisualObject) {
                 visuals.push(...x.wholeVisual());
             }
         });
+        visuals = visuals.filter((x) => x !== undefined && x !== null);
 
         return this.initRaycaster(mx, my).intersectObjects(visuals, false);
     }
@@ -638,16 +703,18 @@ export class ThreeView extends Observable implements IView {
     }
 
     private initIntersectableShapes(shapeType: ShapeType) {
-        const shapes: Object3D[] = [];
+        let shapes: Object3D[] = [];
         this.document.visual.context.visuals().forEach((x) => {
-            if (!x.visible) return;
-            if (x instanceof ThreeVisualObject) shapes.push(...x.subShapeVisual(shapeType));
+            if (x instanceof ThreeVisualObject && x.node.visible) {
+                shapes.push(...x.subShapeVisual(shapeType));
+            }
         });
+        shapes = shapes.filter((x) => x !== undefined && x !== null);
         return shapes;
     }
 
     private initRaycaster(mx: number, my: number) {
-        const threshold = Constants.RaycasterThreshold;
+        const threshold = Config.instance.SnapDistance;
         const { x, y } = this.screenToCameraRect(mx, my);
         const mousePos = new Vector2(x, y);
 

@@ -4,8 +4,8 @@
 #pragma once
 
 #include <Geom_Curve.hxx>
-#include <TopTools_ListOfShape.hxx>
-#include <TopTools_SequenceOfShape.hxx>
+#include <NCollection_Map.hxx>
+#include <TopTools_ShapeMapHasher.hxx>
 #include <TopoDS_Shape.hxx>
 #include <gp_Pnt.hxx>
 
@@ -19,7 +19,8 @@ ProjectPointResult nearestEnd(const Geom_Curve* curve, gp_Pnt pnt);
 
 ProjectPointResult projectOrNearestCP(const Geom_Curve* curve, const gp_Pnt& pnt);
 
-TopTools_SequenceOfShape shapeArrayToSequenceOfShape(const ShapeArray& shapes);
-TopTools_ListOfShape shapeArrayToListOfShape(const ShapeArray& shapes);
+NCollection_Sequence<TopoDS_Shape> shapeArrayToSequenceOfShape(const ShapeArray& shapes);
+NCollection_List<TopoDS_Shape> shapeArrayToListOfShape(const ShapeArray& shapes);
+NCollection_Map<TopoDS_Shape, TopTools_ShapeMapHasher> shapeArrayToMapOfShape(const ShapeArray& shapes);
 
-double boundingBoxRatio(const TopoDS_Shape& shape, double linearDeflection);
+double boundingBoxRatio(const TopoDS_Shape& shape, double linearDeflection, bool useTriangulation);

@@ -35,12 +35,13 @@ export interface IShapeFactory {
     pyramid(plane: Plane, dx: number, dy: number, dz: number): Result<ISolid>;
     wire(edges: IEdge[]): Result<IWire>;
     prism(shape: IShape, vec: XYZ): Result<IShape>;
+    pushPull(shape: IShape, face: IShape, vec: XYZ): Result<IShape>;
     fuse(bottom: IShape, top: IShape): Result<IShape>;
     sweep(profile: IShape[], path: IWire, isRoundCorner: boolean): Result<IShape>;
     revolve(profile: IShape, axis: Line, angle: number): Result<IShape>;
     booleanCommon(shape1: IShape[], shape2: IShape[]): Result<IShape>;
     booleanCut(shape1: IShape[], shape2: IShape[]): Result<IShape>;
-    booleanFuse(shape1: IShape[], shape2: IShape[]): Result<IShape>;
+    booleanFuse(shape1: IShape[], shape2: IShape[], simplifyShape: boolean): Result<IShape>;
     sewing(shape1: IShape, shape2: IShape): Result<IShape>;
     combine(shapes: IShape[]): Result<ICompound>;
     makeThickSolidBySimple(shape: IShape, thickness: number): Result<IShape>;
@@ -57,5 +58,5 @@ export interface IShapeFactory {
     removeSubShape(shape: IShape, subShapes: IShape[]): IShape;
     replaceSubShape(shape: IShape, subShape: IShape, newSubShape: IShape): IShape;
     curveProjection(curve: IEdge | IWire, targetFace: IFace, vec: XYZ): Result<IShape>;
-    simplifyShape(shape: IShape, removeEdges: boolean, removeFaces: boolean): Result<IShape>;
+    simplifyShape(shape: IShape, removeEdges: boolean, removeFaces: boolean, keepShapes: IShape[]): Result<IShape>;
 }

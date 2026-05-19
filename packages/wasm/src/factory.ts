@@ -252,6 +252,12 @@ export class ShapeFactory implements IShapeFactory {
         }
         return convertShapeResult(wasm.ShapeFactory.prism(ensureOccShape(shape)[0], vec));
     }
+    pushPull(shape: IShape, face: IShape, vec: XYZ): Result<IShape> {
+        if (vec.length() === 0) {
+            return Result.err(`The vector length is 0, the prism cannot be created.`);
+        }
+        return convertShapeResult(wasm.ShapeFactory.pushPull(ensureOccShape(shape)[0], ensureOccShape(face)[0], vec));
+    }
     fuse(bottom: IShape, top: IShape): Result<IShape> {
         return convertShapeResult(wasm.ShapeFactory.booleanFuse(ensureOccShape(bottom), ensureOccShape(top)));
     }
@@ -282,13 +288,17 @@ export class ShapeFactory implements IShapeFactory {
             wasm.ShapeFactory.booleanCut(ensureOccShape(shape1), ensureOccShape(shape2)),
         );
     }
-    booleanFuse(shape1: IShape[], shape2: IShape[]): Result<IShape> {
+    booleanFuse(shape1: IShape[], shape2: IShape[], simplifyShape: boolean): Result<IShape> {
         const fused = wasm.ShapeFactory.booleanFuse(ensureOccShape(shape1), ensureOccShape(shape2));
         if (!fused.isOk) {
             return Result.err(fused.error);
         }
+        
+        if (!simplifyShape) {
+            return convertShapeResult(fused);
+        }
 
-        return convertShapeResult(wasm.ShapeFactory.simplifyShape(fused.shape, true, true));
+        return convertShapeResult(wasm.ShapeFactory.simplifyShape(fused.shape, true, true, []));
     }
     sewing(shape1: IShape, shape2: IShape): Result<IShape> {
         const [occShape1, occShape2] = ensureOccShape([shape1, shape2]);
@@ -345,9 +355,9 @@ export class ShapeFactory implements IShapeFactory {
             ),
         );
     }
-    simplifyShape(shape: IShape, removeEdges: boolean, removeFaces: boolean): Result<IShape> {
+    simplifyShape(shape: IShape, removeEdges: boolean, removeFaces: boolean, keepShapes: IShape[]): Result<IShape> {
         return convertShapeResult(
-            wasm.ShapeFactory.simplifyShape(ensureOccShape(shape)[0], removeEdges, removeFaces),
+            wasm.ShapeFactory.simplifyShape(ensureOccShape(shape)[0], removeEdges, removeFaces, ensureOccShape(keepShapes)),
         );
     }
 }

@@ -2,6 +2,7 @@
 // See LICENSE file in the project root for full license information.
 
 import {
+    BoundingBox,
     type EdgeMeshData,
     type FaceMeshData,
     gc,
@@ -9,9 +10,9 @@ import {
     type ICompoundSolid,
     type ICurve,
     type IDisposable,
-    Id,
     type IEdge,
     type IFace,
+    isDisposable,
     type IShape,
     type IShapeMeshData,
     type IShell,
@@ -23,24 +24,24 @@ import {
     type ITrimmedCurve,
     type IVertex,
     type IWire,
-    isDisposable,
     type JoinType,
     Line,
     Logger,
     MathUtils,
     type Matrix4,
     type Orientation,
+    type OrientedBoundingBox,
     Plane,
     Result,
+    serializable,
     type Serialized,
     type SerializedData,
     type ShapeMeshRange,
     type ShapeType,
-    serializable,
     type VertexMeshData,
     VisualConfig,
     type XYZ,
-    type XYZLike,
+    type XYZLike
 } from "@chili3d/core";
 import type {
     EdgeMeshData as OccEdgeMeshData,
@@ -71,20 +72,17 @@ import { OccSurface } from "./surface";
 
 export interface OccShapeOptions {
     shape: TopoDS_Shape;
-    id?: string;
 }
 
 function occShapeSerialize(target: OccShape): SerializedData {
     return {
         shape: wasm.Converter.convertToBrep(target.shape),
-        id: target.id,
     };
 }
 
-function occShapeDeserialize(_document: any, properties: Serialized) {
+function occShapeDeserialize(properties: Serialized) {
     return OccShape.wrap(
         wasm.Converter.convertFromBrep(properties["shape"] as string),
-        properties["id"] as string,
     ) as OccShape;
 }
 
@@ -93,6 +91,9 @@ function occShapeDeserialize(_document: any, properties: Serialized) {
     serialize: occShapeSerialize,
 })
 export class OccShape implements IShape {
+    private _boundingBox: BoundingBox | undefined;
+    private _orientedBoundingBox: OrientedBoundingBox | undefined;
+
     readonly shapeType: ShapeType;
     protected _mesh: IShapeMeshData | undefined;
     get mesh(): IShapeMeshData {
@@ -105,7 +106,7 @@ export class OccShape implements IShape {
         return this._shape;
     }
 
-    id: string;
+    readonly id: string;
 
     get matrix(): Matrix4 {
         return gc((c) => {
@@ -117,41 +118,70 @@ export class OccShape implements IShape {
         gc((c) => {
             const location = c(new wasm.TopLoc_Location(c(convertFromMatrix(matrix))));
             this._shape.setLocation(location, false);
+
+            if (this._boundingBox) {
+                this._boundingBox = BoundingBox.transformed(this._boundingBox, matrix);
+            }
+            if (this._orientedBoundingBox) {
+                this._orientedBoundingBox = {
+                    center: {
+                        location: matrix.ofPoint(this._orientedBoundingBox.center.location),
+                        xDirection: matrix.ofVector(this._orientedBoundingBox.center.xDirection),
+                        direction: matrix.ofVector(this._orientedBoundingBox.center.direction),
+                    },
+                    size: this._orientedBoundingBox.size,
+                };
+            }
+
             this.onTransformChanged();
         });
     }
 
     constructor(options: OccShapeOptions) {
-        this.id = options.id ?? Id.generate();
+        this.id = wasm.Shape.ptr(options.shape).toString();
         this._shape = options.shape;
         this.shapeType = getShapeType(options.shape);
     }
 
-    static wrap(shape: TopoDS_Shape, id: string = Id.generate()): IShape {
+    static wrap(shape: TopoDS_Shape): IShape {
         if (shape.isNull()) {
             throw new Error("Shape is null");
         }
 
         switch (shape.shapeType()) {
             case wasm.TopAbs_ShapeEnum.TopAbs_COMPOUND:
-                return new OccCompound({ shape: wasm.TopoDS.compound(shape), id });
+                return new OccCompound({ shape: wasm.TopoDS.compound(shape)});
             case wasm.TopAbs_ShapeEnum.TopAbs_COMPSOLID:
-                return new OccCompSolid({ shape: wasm.TopoDS.compsolid(shape), id });
+                return new OccCompSolid({ shape: wasm.TopoDS.compsolid(shape)});
             case wasm.TopAbs_ShapeEnum.TopAbs_SOLID:
-                return new OccSolid({ shape: wasm.TopoDS.solid(shape), id });
+                return new OccSolid({ shape: wasm.TopoDS.solid(shape)});
             case wasm.TopAbs_ShapeEnum.TopAbs_SHELL:
-                return new OccShell({ shape: wasm.TopoDS.shell(shape), id });
+                return new OccShell({ shape: wasm.TopoDS.shell(shape)});
             case wasm.TopAbs_ShapeEnum.TopAbs_FACE:
-                return new OccFace({ shape: wasm.TopoDS.face(shape), id });
+                return new OccFace({ shape: wasm.TopoDS.face(shape)});
             case wasm.TopAbs_ShapeEnum.TopAbs_WIRE:
-                return new OccWire({ shape: wasm.TopoDS.wire(shape), id });
+                return new OccWire({ shape: wasm.TopoDS.wire(shape)});
             case wasm.TopAbs_ShapeEnum.TopAbs_EDGE:
-                return new OccEdge({ shape: wasm.TopoDS.edge(shape), id });
+                return new OccEdge({ shape: wasm.TopoDS.edge(shape)});
             case wasm.TopAbs_ShapeEnum.TopAbs_VERTEX:
-                return new OccVertex({ shape: wasm.TopoDS.vertex(shape), id });
+                return new OccVertex({ shape: wasm.TopoDS.vertex(shape)});
             default:
-                return new OccShape({ shape, id });
+                return new OccShape({ shape });
         }
+    }
+
+    boundingBox(): BoundingBox {
+        if (!this._boundingBox) {
+            this._boundingBox = wasm.Shape.boundingBox(this.shape, this._mesh !== undefined);
+        }
+        return this._boundingBox;
+    }
+
+    orientedBoundingBox(): OrientedBoundingBox {
+        if (!this._orientedBoundingBox) {
+            this._orientedBoundingBox = wasm.Shape.orientedBoundingBox(this.shape, this._mesh !== undefined);
+        }
+        return this._orientedBoundingBox;
     }
 
     transformed(matrix: Matrix4): IShape {
@@ -178,7 +208,7 @@ export class OccShape implements IShape {
     }
 
     edgesMeshPosition(): EdgeMeshData {
-        const occMesher = new wasm.Mesher(this.shape, 0.005);
+        const occMesher = new wasm.Mesher(this.shape, 0.005, true);
         const position = occMesher.edgesMeshPosition();
         occMesher.delete();
         return {
@@ -239,10 +269,10 @@ export class OccShape implements IShape {
         return wasm.Shape.findSubShapes(this.shape, getShapeEnum(subshapeType)).map((x) => OccShape.wrap(x));
     }
 
-    iterShape(): IShape[] {
-        let subShape = wasm.Shape.iterShape(this.shape);
+    directSubShapes(): IShape[] {
+        let subShape = wasm.Shape.getDirectSubShapes(this.shape);
         if (subShape.length === 1 && subShape[0].shapeType() === this.shape.shapeType()) {
-            subShape = wasm.Shape.iterShape(subShape[0]);
+            subShape = wasm.Shape.getDirectSubShapes(subShape[0]);
         }
         return subShape.map((x) => OccShape.wrap(x));
     }
@@ -709,7 +739,7 @@ export class Mesher implements IShapeMeshData, IDisposable {
         this._isMeshed = true;
 
         gc((c) => {
-            const occMesher = c(new wasm.Mesher(this.shape.shape, 0.005));
+            const occMesher = c(new wasm.Mesher(this.shape.shape, 0.005, true));
             const meshData = c(occMesher.mesh());
             const faceMeshData = c(meshData.faceMeshData);
             const edgeMeshData = c(meshData.edgeMeshData);

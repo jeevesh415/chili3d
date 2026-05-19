@@ -6,8 +6,9 @@ import type { IDocument } from "../document";
 import { type IEqualityComparer, Logger, PubSub, Result } from "../foundation";
 import { I18n, type I18nKeys } from "../i18n";
 import { Matrix4 } from "../math";
+import { property } from "../property";
 import { serializable, serialize } from "../serialize";
-import type { EdgeMeshData, FaceMeshData, IShape, IShapeMeshData, VertexMeshData } from "../shape";
+import { ShapeTypeUtils, type EdgeMeshData, type FaceMeshData, type IShape, type IShapeMeshData, type VertexMeshData } from "../shape";
 import { MeshUtils } from "../visual/meshUtils";
 import { GeometryNode } from "./geometryNode";
 
@@ -17,6 +18,15 @@ export abstract class ShapeNode extends GeometryNode {
     protected _shape: Result<IShape> = Result.err(SHAPE_UNDEFINED);
     get shape(): Result<IShape> {
         return this._shape;
+    }
+
+    @property("common.shapeType")
+    get shapeType(): string {
+        if (!this._shape.isOk) {
+            return this._shape.error;
+        }
+
+        return ShapeTypeUtils.stringValue(this._shape.value.shapeType);
     }
 
     protected setShape(shape: Result<IShape>) {
@@ -29,13 +39,8 @@ export abstract class ShapeNode extends GeometryNode {
             return;
         }
 
-        const oldShape = this._shape;
-        this._shape = shape;
         this._mesh = undefined;
-
-        this.emitPropertyChanged("shape", oldShape);
-
-        oldShape.unchecked()?.dispose();
+        this.setProperty("shape", shape);
     }
 
     protected override createMesh(): IShapeMeshData {
@@ -219,12 +224,7 @@ export class EditableShapeNode extends ShapeNode {
     }
 
     constructor(options: EditableShapeNodeOptions) {
-        super({
-            document: options.document,
-            name: options.name,
-            materialId: options.materialId,
-            id: options.id,
-        });
+        super(options);
         this._shape = options.shape instanceof Result ? options.shape : Result.ok(options.shape);
     }
 }

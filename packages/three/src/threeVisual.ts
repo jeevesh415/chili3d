@@ -2,15 +2,13 @@
 // See LICENSE file in the project root for full license information.
 
 import {
+    isDisposable,
     type IDocument,
     type IEventHandler,
     type IMeshExporter,
     type IVisual,
-    isDisposable,
-    Logger,
-    type Plane,
+    type Plane
 } from "@chili3d/core";
-import { NodeSelectionHandler } from "@chili3d/core/src/eventHandlers";
 import { AmbientLight, AxesHelper, Object3D, Scene } from "three";
 import { ThreeMeshExporter } from "./meshExporter";
 import { ThreeHighlighter } from "./threeHighlighter";
@@ -21,36 +19,23 @@ import { ThreeVisualContext } from "./threeVisualContext";
 Object3D.DEFAULT_UP.set(0, 0, 1);
 
 export class ThreeVisual implements IVisual {
-    readonly defaultEventHandler: IEventHandler;
     readonly context: ThreeVisualContext;
     readonly scene: Scene;
     readonly highlighter: ThreeHighlighter;
-    readonly viewHandler: IEventHandler;
     readonly meshExporter: IMeshExporter;
-    private _eventHandler: IEventHandler;
 
-    get eventHandler() {
-        return this._eventHandler;
-    }
+    viewHandler: IEventHandler;
+    eventHandler: IEventHandler;
+    defaultEventHandler: IEventHandler;
 
-    set eventHandler(value: IEventHandler) {
-        if (this._eventHandler === value) return;
-        this._eventHandler = value;
-        Logger.info(`Changed EventHandler to ${Object.getPrototypeOf(value).constructor.name}`);
-    }
-
-    constructor(readonly document: IDocument) {
+    constructor(readonly document: IDocument, defaultEventHandler: IEventHandler) {
         this.scene = this.initScene();
-        this.defaultEventHandler = this.createDefaultSelectionHandler(document);
+        this.defaultEventHandler = defaultEventHandler;
         this.viewHandler = new ThreeViewHandler();
         this.context = new ThreeVisualContext(this, this.scene);
         this.highlighter = new ThreeHighlighter(this.context);
         this.meshExporter = new ThreeMeshExporter(this.context);
-        this._eventHandler = this.defaultEventHandler;
-    }
-
-    protected createDefaultSelectionHandler(document: IDocument) {
-        return new NodeSelectionHandler(document, true);
+        this.eventHandler = this.defaultEventHandler;
     }
 
     initScene() {
@@ -59,14 +44,6 @@ export class ThreeVisual implements IVisual {
         const axisHelper = new AxesHelper(250);
         scene.add(envLight, axisHelper);
         return scene;
-    }
-
-    resetEventHandler() {
-        this.eventHandler = this.defaultEventHandler;
-    }
-
-    isExcutingHandler(): boolean {
-        return this.eventHandler !== this.defaultEventHandler;
     }
 
     createView(name: string, workplane: Plane) {
@@ -82,7 +59,7 @@ export class ThreeVisual implements IVisual {
     dispose() {
         this.context.dispose();
         this.defaultEventHandler.dispose();
-        this._eventHandler.dispose();
+        this.eventHandler.dispose();
         this.viewHandler.dispose();
         this.scene.traverse((x) => {
             if (isDisposable(x)) x.dispose();

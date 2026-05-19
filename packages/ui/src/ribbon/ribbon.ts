@@ -13,19 +13,18 @@ import {
     type IView,
     Localize,
     Logger,
-    ObservableCollection,
     PubSub,
     Result,
     type Ribbon,
-    type RibbonCommand,
     type RibbonGroup,
     type RibbonTab,
+    type RibbonTabKeys,
 } from "@chili3d/core";
 import { a, collection, createIcon, div, label, span, svg } from "@chili3d/element";
 import { CommandContext } from "./commandContext";
 import style from "./ribbon.module.css";
-import { RibbonButton } from "./ribbonButton";
-import { RibbonStack } from "./ribbonStack";
+import { RibbonPushButton } from "./ribbonButton";
+import { RibbonGroupElement } from "./ribbonGroup";
 
 export const QuickButton = (command: ICommand) => {
     const data = CommandStore.getComandData(command);
@@ -69,11 +68,11 @@ class ActivedRibbonTabConverter implements IConverter<RibbonTab> {
     }
 }
 
-class DisplayConverter implements IConverter<RibbonTab> {
-    constructor(readonly tab: RibbonTab) {}
+class DisplayConverter<T> implements IConverter<T> {
+    constructor(readonly predicate: (value: T) => boolean) {}
 
-    convert(value: RibbonTab): Result<string> {
-        return Result.ok(this.tab === value ? "" : "none");
+    convert(value: T): Result<string> {
+        return Result.ok(this.predicate(value) ? "" : "none");
     }
 }
 
@@ -88,7 +87,29 @@ export class RibbonUI extends HTMLElement {
         super();
         this.className = style.root;
         this.append(this.header(), this.ribbonTabs(), this._commandContext);
+        app.mainWindow?.ribbon.onPropertyChanged(this.handleRibbonChanged);
     }
+
+    private readonly handleRibbonChanged = (key: keyof Ribbon) => {
+        if (key === "editableTabs") {
+            if (this.dataContent.editableTabs.length > 0) {
+                const groups = this.querySelectorAll(`.${style.groupPanel}`);
+                for (const group of groups) {
+                    const tab = (group as HTMLElement).dataset["tab"] as RibbonTabKeys;
+                    if (this.dataContent.editableTabs.includes(tab)) {
+                        group.classList.remove(style.disabled);
+                    } else {
+                        group.classList.add(style.disabled);
+                    }
+                }
+            } else {
+                const groups = this.querySelectorAll(`.${style.disabled}`);
+                for (const group of groups) {
+                    group.classList.remove(style.disabled);
+                }
+            }
+        }
+    };
 
     private header() {
         return div({ className: style.titleBar }, this.leftPanel(), this.centerPanel(), this.rightPanel());
@@ -128,6 +149,15 @@ export class RibbonUI extends HTMLElement {
                 return label({
                     className: new Binding(this.dataContent, "activeTab", converter),
                     textContent: new Localize(tab.tabName),
+                    style: {
+                        display: new Binding(
+                            this.dataContent,
+                            "hiddenTabs",
+                            new DisplayConverter(
+                                (hiddens: RibbonTabKeys[]) => !hiddens.includes(tab.tabName),
+                            ),
+                        ),
+                    },
                     onclick: () => {
                         this.dataContent.activeTab = tab;
                     },
@@ -157,7 +187,7 @@ export class RibbonUI extends HTMLElement {
         return div(
             {
                 className: new Binding(
-                    this.dataContent,
+                    this.app,
                     "activeView",
                     new ViewActiveConverter(view, style.tab, style.active),
                 ),
@@ -198,39 +228,17 @@ export class RibbonUI extends HTMLElement {
     private ribbonTab(tab: RibbonTab) {
         return collection({
             className: style.groupPanel,
+            dataset: { tab: tab.tabName },
             sources: tab.groups,
             style: {
-                display: new Binding(this.dataContent, "activeTab", new DisplayConverter(tab)),
+                display: new Binding(
+                    this.dataContent,
+                    "activeTab",
+                    new DisplayConverter((tb: RibbonTab) => tab === tb),
+                ),
             },
-            template: (group: RibbonGroup) => this.ribbonGroup(group),
+            template: (group: RibbonGroup) => new RibbonGroupElement(group),
         });
-    }
-
-    private ribbonGroup(group: RibbonGroup) {
-        return div(
-            { className: style.ribbonGroup },
-            collection({
-                sources: group.items,
-                className: style.content,
-                template: (item) => this.ribbonButton(item),
-            }),
-            label({ className: style.header, textContent: new Localize(group.groupName) }),
-        );
-    }
-
-    private ribbonButton(item: RibbonCommand) {
-        if (typeof item === "string") {
-            return RibbonButton.fromCommandName(item, "large")!;
-        } else if (item instanceof ObservableCollection) {
-            const stack = new RibbonStack();
-            item.forEach((b) => {
-                const button = RibbonButton.fromCommandName(b, "small");
-                if (button) stack.append(button);
-            });
-            return stack;
-        } else {
-            return new RibbonButton(item.command, item.icon, "large", item.onClick, item.display);
-        }
     }
 
     connectedCallback(): void {
@@ -247,8 +255,8 @@ export class RibbonUI extends HTMLElement {
 
     private readonly handleConfigChanged = (prop: keyof Config) => {
         if (prop === "navigation3D") {
-            this.querySelectorAll(customElements.getName(RibbonButton)!).forEach((x) => {
-                (x as RibbonButton).updateShortcut();
+            this.querySelectorAll(customElements.getName(RibbonPushButton)!).forEach((x) => {
+                (x as RibbonPushButton).updateShortcut();
             });
         }
     };

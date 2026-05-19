@@ -3,7 +3,7 @@
 
 import { VisualConfig } from "../src/config";
 import { Result } from "../src/foundation";
-import { Matrix4 } from "../src/math";
+import { type BoundingBox, Matrix4, type OrientedBoundingBox } from "../src/math";
 import * as ShapeNodeClasses from "../src/model/shapeNode";
 import type { EdgeMeshData, IShape, IShapeMeshData } from "../src/shape";
 import { TestDocument } from "./testDocument";
@@ -43,7 +43,12 @@ class MockShape implements IShape {
     get matrix(): Matrix4 {
         return Matrix4.identity();
     }
-
+    boundingBox(): BoundingBox {
+        throw new Error("Method not implemented.");
+    }
+    orientedBoundingBox(): OrientedBoundingBox {
+        throw new Error("Method not implemented.");
+    }
     transformed(_matrix: Matrix4): IShape {
         return new MockShape();
     }
@@ -77,7 +82,7 @@ class MockShape implements IShape {
     findSubShapes(_subshapeType: any): IShape[] {
         return [];
     }
-    iterShape(): IShape[] {
+    directSubShapes(): IShape[] {
         return [this];
     }
     section(_shape: IShape | any): IShape {

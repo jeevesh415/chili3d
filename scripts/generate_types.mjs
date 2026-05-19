@@ -9,7 +9,7 @@ import { execAsync } from "./common.mjs";
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const rootDir = path.resolve(__dirname, "..");
 const packagesDir = path.join(rootDir, "packages");
-const typesDir = path.join(rootDir, "types", "packages");
+const typesDir = path.join(rootDir, "types");
 
 async function generateDeclarations() {
     console.log("Generating TypeScript declarations...");
@@ -54,6 +54,8 @@ async function main() {
     }
 
     console.log("\nAll types generated successfully!");
+
+    console.log("Publish to npm with `npm publish --access public [--tag beta] ./types/<package>`");
 }
 
 await main();

@@ -241,6 +241,13 @@
     }
 }
 
+.disabled {
+    pointer-events: none;
+    opacity: 0.6;
+    user-select: none;
+    cursor: default;
+}
+
 .commandContextPanel {
     display: flex;
     flex-direction: row;
@@ -249,38 +256,4 @@
     height: 32px;
     background-color: var(--panel-background-color);
     border-bottom: 1px solid var(--border-color);
-}
-
-.ribbonGroup {
-    position: relative;
-    display: grid;
-    grid-template-rows: 1fr auto;
-    justify-items: center;
-    flex-shrink: 0;
-
-    .header {
-        color: var(--foreground-color);
-        font-size: 12px;
-    }
-
-    .content {
-        height: 72px;
-        flex-shrink: 0;
-        display: flex;
-        flex-direction: row;
-        align-items: center;
-        justify-items: center;
-        overflow: hidden;
-    }
-}
-
-.ribbonGroup::after {
-    content: "";
-    position: absolute;
-    display: grid;
-    right: 0px;
-    top: 6px;
-    bottom: 6px;
-    width: 1px;
-    background-color: var(--border-color);
 }

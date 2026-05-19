@@ -7,6 +7,17 @@ import type { LineSegment } from "./lineSegment";
 import type { Matrix4 } from "./matrix4";
 import { getVectorComponent, XYZ, type XYZLike } from "./xyz";
 
+export type Ax3 = {
+    location: XYZLike;
+    direction: XYZLike;
+    xDirection: XYZLike;
+};
+
+export type OrientedBoundingBox = {
+    center: Ax3;
+    size: XYZLike;
+};
+
 export class BoundingBox {
     constructor(
         readonly min: XYZLike,
@@ -255,5 +266,13 @@ export class BoundingBox {
             max.z = Math.max(max.z, point.z);
         }
         return new BoundingBox(min, max);
+    }
+
+    static maxSize(box: BoundingBox): number {
+        return Math.max(box.max.x - box.min.x, box.max.y - box.min.y, box.max.z - box.min.z);
+    }
+
+    static minSize(box: BoundingBox) {
+        return Math.min(box.max.x - box.min.x, box.max.y - box.min.y, box.max.z - box.min.z);
     }
 }

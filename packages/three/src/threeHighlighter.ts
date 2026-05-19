@@ -16,6 +16,7 @@ import {
 import { Group, Mesh, Points } from "three";
 import { LineSegments2 } from "three/examples/jsm/lines/LineSegments2.js";
 import { LineSegmentsGeometry } from "three/examples/jsm/lines/LineSegmentsGeometry.js";
+import { isHighlightable } from "./highlightable";
 import {
     faceColoredMaterial,
     faceTransparentMaterial,
@@ -23,8 +24,7 @@ import {
     hilightEdgeMaterial,
     selectedEdgeMaterial,
     selectedVertexMaterial,
-} from "./common";
-import { isHighlightable } from "./highlightable";
+} from "./materials";
 import { ThreeGeometry } from "./threeGeometry";
 import { ThreeGeometryFactory } from "./threeGeometryFactory";
 import type { ThreeVisualContext } from "./threeVisualContext";
@@ -56,9 +56,9 @@ export class GeometryState {
     }
 
     private updateState(method: "add" | "remove", state: VisualState, type: ShapeType, index: number[]) {
-        if (ShapeTypeUtils.isWhole(type)) {
+        if (index.length === 0 || ShapeTypeUtils.isWhole(type)) {
             this.setWholeState(method, state, type);
-        } else if (index.length > 0) {
+        } else {
             this.setSubGeometryState(method, state, type, index);
         }
     }

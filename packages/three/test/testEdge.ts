@@ -2,6 +2,7 @@
 // See LICENSE file in the project root for full license information.
 
 import {
+    type BoundingBox,
     type EdgeMeshData,
     type I18nKeys,
     type ICurve,
@@ -15,14 +16,14 @@ import {
     type Line,
     Matrix4,
     type Orientation,
+    type OrientedBoundingBox,
     ParameterShapeNode,
     type Plane,
     Result,
-    type Serialized,
     type ShapeType,
     ShapeTypes,
     type XYZ,
-    type XYZLike,
+    type XYZLike
 } from "@chili3d/core";
 
 export class TestEdge implements IEdge {
@@ -78,7 +79,7 @@ export class TestEdge implements IEdge {
     findSubShapes(subshapeType: ShapeType): IShape[] {
         throw new Error("Method not implemented.");
     }
-    iterShape(): IShape[] {
+    directSubShapes(): IShape[] {
         throw new Error("Method not implemented.");
     }
     offset(distance: number, dir: XYZ): Result<IEdge> {
@@ -99,6 +100,12 @@ export class TestEdge implements IEdge {
     }
     get id(): string {
         return "testEdge";
+    }
+    boundingBox(): BoundingBox {
+        throw new Error("Method not implemented.");
+    }
+    orientedBoundingBox(): OrientedBoundingBox {
+        throw new Error("Method not implemented.");
     }
     shapeType: ShapeType = ShapeTypes.edge;
     matrix: Matrix4 = Matrix4.identity();

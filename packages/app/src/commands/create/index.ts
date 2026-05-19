@@ -2,6 +2,8 @@
 // See LICENSE file in the project root for full license information.
 
 export * from "./arc";
+export * from "./arc2point";
+export * from "./arc3point";
 export * from "./bezier";
 export * from "./box";
 export * from "./circle";
@@ -11,6 +13,7 @@ export * from "./copySubShape";
 export * from "./curveProjection";
 export * from "./cylinder";
 export * from "./ellipse";
+export * from "./extrude";
 export * from "./group";
 export * from "./line";
 export * from "./loft";
@@ -18,9 +21,9 @@ export * from "./offset";
 export * from "./pipe";
 export * from "./point";
 export * from "./polygon";
-export * from "./prism";
 export * from "./pyramid";
 export * from "./rect";
+export * from "./regularPolygon";
 export * from "./revolve";
 export * from "./section";
 export * from "./sphere";

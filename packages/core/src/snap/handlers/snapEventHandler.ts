@@ -94,7 +94,7 @@ export abstract class SnapEventHandler<D extends SnapData = SnapData> implements
     }
 
     protected setSnaped(view: IView, event: PointerEvent) {
-        this.findSnapPoint((ShapeTypes.edge | ShapeTypes.vertex) as ShapeType, view, event);
+        this.findSnapPoint((ShapeTypes.edge | ShapeTypes.vertex | ShapeTypes.face) as ShapeType, view, event);
 
         this.snaps.forEach((snap) => snap.handleSnaped?.(view.document.visual.document, this._snaped));
     }
@@ -124,6 +124,7 @@ export abstract class SnapEventHandler<D extends SnapData = SnapData> implements
                 point: featurePoint.point,
                 info: featurePoint.prompt,
                 shapes: [],
+                type: "feature"
             };
         } else {
             const detected = this.detectShapes(shapeType, view, event);
@@ -241,6 +242,12 @@ export abstract class SnapEventHandler<D extends SnapData = SnapData> implements
     }
 
     keyDown(view: IView, event: KeyboardEvent): void {
+        this.data.onKeyDown?.(event, () => {
+            this.removeTempShapes();
+            this.showTempShape(this._snaped?.point);
+            view.document.visual.update()
+        });
+
         switch (event.key) {
             case "Escape":
                 this._snaped = undefined;
